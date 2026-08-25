@@ -40,7 +40,6 @@ INSTALLED_APPS = [
 
     # Third-party apps
     'rest_framework',
-    'rest_framework_simplejwt',
     'corsheaders',
 
     # Local apps
@@ -136,12 +135,15 @@ MAILERS = {
 }
 
 
+# Django REST Framework
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
         'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
 }
 
+
+# CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
