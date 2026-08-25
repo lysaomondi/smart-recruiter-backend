@@ -6,7 +6,11 @@ from rest_framework_simplejwt.views import (
     TokenRefreshView,
 )
 
-from .serializers import LoginSerializer, RegisterSerializer
+from .serializers import (
+    LoginSerializer,
+    RegisterSerializer,
+    UserSerializer,
+)
 
 
 class RegisterView(generics.CreateAPIView):
@@ -25,12 +29,7 @@ class RegisterView(generics.CreateAPIView):
         return Response(
             {
                 "message": "Account created successfully.",
-                "user": {
-                    "id": user.id,
-                    "full_name": user.full_name,
-                    "email": user.email,
-                    "role": user.role,
-                },
+                "user": UserSerializer(user).data,
             },
             status=status.HTTP_201_CREATED,
         )
@@ -65,16 +64,12 @@ class MeView(generics.RetrieveAPIView):
     """
 
     permission_classes = [IsAuthenticated]
+    serializer_class = UserSerializer
 
     def retrieve(self, request, *args, **kwargs):
-        user = request.user
+        serializer = self.get_serializer(request.user)
 
         return Response(
-            {
-                "id": user.id,
-                "full_name": user.full_name,
-                "email": user.email,
-                "role": user.role,
-            },
+            serializer.data,
             status=status.HTTP_200_OK,
         )

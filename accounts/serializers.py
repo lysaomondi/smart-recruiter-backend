@@ -8,6 +8,27 @@ from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 User = get_user_model()
 
 
+class UserSerializer(serializers.ModelSerializer):
+    """
+    Serialize public user information.
+    """
+
+    class Meta:
+        model = User
+        fields = [
+            "id",
+            "full_name",
+            "email",
+            "role",
+        ]
+        read_only_fields = [
+            "id",
+            "full_name",
+            "email",
+            "role",
+        ]
+
+
 class RegisterSerializer(serializers.ModelSerializer):
     """
     Validate and create a new user account.
@@ -63,7 +84,10 @@ class RegisterSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         password = attrs.get("password")
-        password_confirmation = attrs.pop("password_confirmation", None)
+        password_confirmation = attrs.pop(
+            "password_confirmation",
+            None,
+        )
 
         if password != password_confirmation:
             raise serializers.ValidationError(
@@ -105,11 +129,6 @@ class LoginSerializer(TokenObtainPairSerializer):
     def validate(self, attrs):
         data = super().validate(attrs)
 
-        data["user"] = {
-            "id": self.user.id,
-            "full_name": self.user.full_name,
-            "email": self.user.email,
-            "role": self.user.role,
-        }
+        data["user"] = UserSerializer(self.user).data
 
         return data
