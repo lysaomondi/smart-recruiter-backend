@@ -1,4 +1,5 @@
 from rest_framework import generics, status
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
@@ -56,3 +57,24 @@ class RefreshTokenView(TokenRefreshView):
     """
 
     pass
+
+
+class MeView(generics.RetrieveAPIView):
+    """
+    Return information about the currently authenticated user.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def retrieve(self, request, *args, **kwargs):
+        user = request.user
+
+        return Response(
+            {
+                "id": user.id,
+                "full_name": user.full_name,
+                "email": user.email,
+                "role": user.role,
+            },
+            status=status.HTTP_200_OK,
+        )
