@@ -8,6 +8,7 @@ from rest_framework_simplejwt.views import (
 
 from .serializers import (
     LoginSerializer,
+    LogoutSerializer,
     RegisterSerializer,
     UserSerializer,
 )
@@ -71,5 +72,25 @@ class MeView(generics.RetrieveAPIView):
 
         return Response(
             serializer.data,
+            status=status.HTTP_200_OK,
+        )
+
+class LogoutView(generics.GenericAPIView):
+    """
+    Blacklist the refresh token and log the user out.
+    """
+
+    permission_classes = [IsAuthenticated]
+    serializer_class = LogoutSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(
+            {
+                "message": "Logout successful.",
+            },
             status=status.HTTP_200_OK,
         )

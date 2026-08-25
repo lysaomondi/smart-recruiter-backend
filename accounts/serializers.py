@@ -2,8 +2,10 @@ from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 
 from rest_framework import serializers
-from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-
+from rest_framework_simplejwt.serializers import (
+    TokenBlacklistSerializer,
+    TokenObtainPairSerializer,
+)
 
 User = get_user_model()
 
@@ -132,3 +134,11 @@ class LoginSerializer(TokenObtainPairSerializer):
         data["user"] = UserSerializer(self.user).data
 
         return data
+
+
+class LogoutSerializer(TokenBlacklistSerializer):
+    """
+    Blacklist a refresh token during logout.
+    """
+
+    pass       
