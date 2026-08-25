@@ -1,12 +1,18 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
+
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 
 User = get_user_model()
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+    """
+    Validate and create a new user account.
+    """
+
     password = serializers.CharField(
         write_only=True,
         required=True,
@@ -61,7 +67,9 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         if password != password_confirmation:
             raise serializers.ValidationError(
-                {"password_confirmation": "Passwords do not match."}
+                {
+                    "password_confirmation": "Passwords do not match."
+                }
             )
 
         validate_password(
@@ -84,3 +92,24 @@ class RegisterSerializer(serializers.ModelSerializer):
         )
 
         return user
+
+
+class LoginSerializer(TokenObtainPairSerializer):
+    """
+    Authenticate a user using email and password
+    and return JWT access and refresh tokens.
+    """
+
+    username_field = "email"
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+
+        data["user"] = {
+            "id": self.user.id,
+            "full_name": self.user.full_name,
+            "email": self.user.email,
+            "role": self.user.role,
+        }
+
+        return data
