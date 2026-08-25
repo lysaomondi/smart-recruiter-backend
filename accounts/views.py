@@ -1,6 +1,9 @@
 from rest_framework import generics, status
 from rest_framework.response import Response
-from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework_simplejwt.views import (
+    TokenObtainPairView,
+    TokenRefreshView,
+)
 
 from .serializers import LoginSerializer, RegisterSerializer
 
@@ -45,3 +48,11 @@ class LoginView(TokenObtainPairView):
         response.data["message"] = "Login successful."
 
         return response
+
+
+class RefreshTokenView(TokenRefreshView):
+    """
+    Generate a new access token using a valid refresh token.
+    """
+
+    pass
