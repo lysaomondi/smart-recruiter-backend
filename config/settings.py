@@ -143,7 +143,10 @@ REST_FRAMEWORK = {
 }
 
 
-# CORS
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:5173",
 ]
+
+
+# Custom user model
+AUTH_USER_MODEL = 'accounts.User'
