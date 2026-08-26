@@ -11,17 +11,17 @@ from .permissions import IsInterviewee, IsRecruiter
 from .serializers import (
     FeedbackSerializer,
     ResultDetailSerializer,
+    ResultRankingSerializer,
     ResultSerializer,
     ResultStatisticsSerializer,
 )
-from .services import get_result_statistics
+from .services import (
+    get_result_rankings,
+    get_result_statistics,
+)
 
 
 class ResultListView(APIView):
-    """
-    Recruiter: view all results.
-    """
-
     permission_classes = [
         IsAuthenticated,
         IsRecruiter,
@@ -42,11 +42,31 @@ class ResultListView(APIView):
         return Response(serializer.data)
 
 
-class ResultDetailView(APIView):
-    """
-    Recruiter: view detailed result information.
-    """
+class ResultRankingView(APIView):
+    permission_classes = [
+        IsAuthenticated,
+        IsRecruiter,
+    ]
 
+    def get(self, request):
+        rankings = get_result_rankings()
+
+        data = []
+
+        for item in rankings:
+            serializer = ResultRankingSerializer(
+                item["result"],
+                context={
+                    "rank": item["rank"],
+                },
+            )
+
+            data.append(serializer.data)
+
+        return Response(data)
+
+
+class ResultDetailView(APIView):
     permission_classes = [
         IsAuthenticated,
         IsRecruiter,
@@ -64,10 +84,6 @@ class ResultDetailView(APIView):
 
 
 class ReleaseResultView(APIView):
-    """
-    Recruiter: release a result to the interviewee.
-    """
-
     permission_classes = [
         IsAuthenticated,
         IsRecruiter,
@@ -82,7 +98,7 @@ class ReleaseResultView(APIView):
         if result.status == Result.STATUS_RELEASED:
             return Response(
                 {
-                    "message": "Result is already released."
+                    "message": "Result is already released.",
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
@@ -99,16 +115,12 @@ class ReleaseResultView(APIView):
         )
 
         return Response(
-            ResultDetailSerializer(result).data,
+            ResultSerializer(result).data,
             status=status.HTTP_200_OK,
         )
 
 
 class ResultStatisticsView(APIView):
-    """
-    Recruiter: view aggregate assessment statistics.
-    """
-
     permission_classes = [
         IsAuthenticated,
         IsRecruiter,
@@ -125,10 +137,6 @@ class ResultStatisticsView(APIView):
 
 
 class MyResultsView(APIView):
-    """
-    Interviewee: view only their own released results.
-    """
-
     permission_classes = [
         IsAuthenticated,
         IsInterviewee,
@@ -138,7 +146,7 @@ class MyResultsView(APIView):
         results = (
             Result.objects
             .filter(
-                attempt__user_id=request.user.id,
+                attempt__user=request.user,
                 status=Result.STATUS_RELEASED,
             )
             .prefetch_related("feedback")
@@ -154,10 +162,6 @@ class MyResultsView(APIView):
 
 
 class FeedbackListCreateView(APIView):
-    """
-    Recruiter: view or create feedback for a result.
-    """
-
     permission_classes = [
         IsAuthenticated,
         IsRecruiter,
@@ -200,7 +204,7 @@ class FeedbackListCreateView(APIView):
         )
 
         feedback = serializer.save(
-            recruiter=request.user
+            recruiter=request.user,
         )
 
         return Response(
@@ -210,10 +214,6 @@ class FeedbackListCreateView(APIView):
 
 
 class FeedbackDetailView(APIView):
-    """
-    Recruiter: update or delete their own feedback.
-    """
-
     permission_classes = [
         IsAuthenticated,
         IsRecruiter,
