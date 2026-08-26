@@ -1,12 +1,14 @@
 from django.contrib import admin
 from django.urls import path, include
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('assessments.urls')),
-    # Other apps' urls.py are still empty — add as each member builds theirs:
-    # path('api/', include('accounts.urls')),
-    # path('api/', include('attempts.urls')),
-    # path('api/', include('invitations.urls')),
-    # path('api/', include('results.urls')),
+
+    # TEMPORARY — Member 1 should move these into accounts/urls.py and build
+    # proper register/login/me endpoints around them. Paths should stay the
+    # same (/api/token/, /api/token/refresh/) so nothing else needs to change.
+    path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
+    path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 ]
