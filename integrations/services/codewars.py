@@ -4,7 +4,7 @@ from urllib.request import Request, urlopen
 
 from django.utils import timezone
 
-from integrations.models import CodewarsKata
+from ..models import CodewarsKata
 
 
 CODEWARS_API_BASE_URL = (
@@ -85,14 +85,30 @@ def save_kata(kata_data):
     in the local database.
     """
 
+    kata_id = kata_data.get("id")
+
+    if not kata_id:
+        raise CodewarsAPIError(
+            "Codewars response did not contain a kata ID."
+        )
+
     rank = kata_data.get("rank") or {}
 
     kata, created = CodewarsKata.objects.update_or_create(
-        kata_id=kata_data.get("id"),
+        kata_id=kata_id,
         defaults={
-            "name": kata_data.get("name", ""),
-            "slug": kata_data.get("slug", ""),
-            "url": kata_data.get("url", ""),
+            "name": kata_data.get(
+                "name",
+                "",
+            ),
+            "slug": kata_data.get(
+                "slug",
+                "",
+            ),
+            "url": kata_data.get(
+                "url",
+                "",
+            ),
             "description": kata_data.get(
                 "description",
                 "",
