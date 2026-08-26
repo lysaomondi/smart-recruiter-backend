@@ -46,7 +46,7 @@ class CodewarsSearchView(APIView):
                 {
                     "error": str(exc),
                 },
-                status=status.HTTP_404_NOT_FOUND,
+                status=status.HTTP_502_BAD_GATEWAY,
             )
 
         serializer = CodewarsKataSerializer(kata)
