@@ -1,21 +1,78 @@
-from django.contrib.auth.models import AbstractUser
+from django.contrib.auth.base_user import BaseUserManager
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 
 
-class User(AbstractUser):
-    """
-    PLACEHOLDER — Member 1 owns the real User model (auth, registration flow,
-    any extra profile fields). This minimal version exists only so:
-      1. AUTH_USER_MODEL can be set before the first migration (required —
-         changing it later means resetting migrations across the whole project)
-      2. assessments.Assessment.recruiter has something to ForeignKey against
+class UserManager(BaseUserManager):
+    """Manager for creating users with email as the unique identifier."""
 
-    Member 1: extend this freely (add fields, override save, etc.) — just
-    keep the model name "User" and the "role" field/values if other apps
-    already depend on them by the time you get here.
-    """
-    ROLE_CHOICES = [
-        ("recruiter", "Recruiter"),
-        ("interviewee", "Interviewee"),
-    ]
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="recruiter")
+    def create_user(self, email, password=None, **extra_fields):
+        if not email:
+            raise ValueError("The email address is required.")
+
+        email = self.normalize_email(email)
+        user = self.model(email=email, **extra_fields)
+
+        if password:
+            user.set_password(password)
+        else:
+            user.set_unusable_password()
+
+        user.save(using=self._db)
+        return user
+
+    def create_superuser(self, email, password=None, **extra_fields):
+        extra_fields.setdefault("is_staff", True)
+        extra_fields.setdefault("is_superuser", True)
+        extra_fields.setdefault("is_active", True)
+
+        if not password:
+            raise ValueError("A password is required for a superuser.")
+
+        if extra_fields.get("is_staff") is not True:
+            raise ValueError("Superuser must have is_staff=True.")
+
+        if extra_fields.get("is_superuser") is not True:
+            raise ValueError("Superuser must have is_superuser=True.")
+
+        return self.create_user(
+            email=email,
+            password=password,
+            **extra_fields,
+        )
+
+
+class User(AbstractBaseUser, PermissionsMixin):
+    class Role(models.TextChoices):
+        RECRUITER = "RECRUITER", "Recruiter"
+        INTERVIEWEE = "INTERVIEWEE", "Interviewee"
+
+    email = models.EmailField(
+        unique=True,
+        db_index=True,
+    )
+
+    full_name = models.CharField(
+        max_length=150,
+    )
+
+    role = models.CharField(
+        max_length=20,
+        choices=Role.choices,
+    )
+
+    is_active = models.BooleanField(
+        default=True,
+    )
+
+    is_staff = models.BooleanField(
+        default=False,
+    )
+
+    objects = UserManager()
+
+    USERNAME_FIELD = "email"
+    REQUIRED_FIELDS = ["full_name", "role"]
+
+    def __str__(self):
+        return self.email

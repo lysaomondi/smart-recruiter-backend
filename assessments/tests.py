@@ -11,7 +11,10 @@ User = get_user_model()
 class AssessmentAPITestCase(TestCase):
     def setUp(self):
         self.recruiter = User.objects.create_user(
-            username="recruiter1", email="r1@test.com", password="testpass123", role="recruiter"
+            email="r1@test.com",
+            password="testpass123",
+            full_name="Recruiter One",
+            role=User.Role.RECRUITER,
         )
         self.client = APIClient()
         self.client.force_authenticate(user=self.recruiter)
@@ -25,7 +28,12 @@ class AssessmentAPITestCase(TestCase):
 
     def test_list_only_own_assessments(self):
         Assessment.objects.create(title="Mine", recruiter=self.recruiter)
-        other = User.objects.create_user(username="recruiter2", email="r2@test.com", password="testpass123")
+        other = User.objects.create_user(
+            email="r2@test.com",
+            password="testpass123",
+            full_name="Recruiter Two",
+            role=User.Role.RECRUITER,
+        )
         Assessment.objects.create(title="Not mine", recruiter=other)
 
         response = self.client.get("/api/assessments/")
