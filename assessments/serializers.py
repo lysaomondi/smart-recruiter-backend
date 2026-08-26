@@ -10,6 +10,16 @@ class ChoiceSerializer(serializers.ModelSerializer):
         fields = ["id", "text", "isCorrect"]
 
 
+class ChoiceUpdateSerializer(serializers.ModelSerializer):
+    """PATCH /assessments/:aid/questions/:qid/choices/:cid/ — all fields optional"""
+    isCorrect = serializers.BooleanField(source="is_correct", required=False)
+
+    class Meta:
+        model = Choice
+        fields = ["text", "isCorrect"]
+        extra_kwargs = {"text": {"required": False}}
+
+
 class QuestionSerializer(serializers.ModelSerializer):
     choices = ChoiceSerializer(many=True, required=False)
     kataBdd = serializers.CharField(source="kata_bdd", required=False, allow_null=True)
@@ -30,8 +40,22 @@ class QuestionSerializer(serializers.ModelSerializer):
         return question
 
 
+class QuestionUpdateSerializer(serializers.ModelSerializer):
+    """PATCH /assessments/:aid/questions/:qid/ — prompt/kata fields only.
+    Choices are managed through their own nested endpoints, not rewritten here."""
+    kataBdd = serializers.CharField(source="kata_bdd", required=False, allow_null=True)
+    kataPseudocode = serializers.CharField(source="kata_pseudocode", required=False, allow_null=True)
+    kataDifficulty = serializers.CharField(source="kata_difficulty", required=False, allow_null=True)
+
+    class Meta:
+        model = Question
+        fields = ["prompt", "kataBdd", "kataPseudocode", "kataDifficulty"]
+        extra_kwargs = {"prompt": {"required": False}}
+
+
 class AssessmentSerializer(serializers.ModelSerializer):
-    """Full read serializer — includes nested questions."""
+    """Full read serializer — includes nested questions. Also doubles as the
+    preview/detail endpoint response (GET /assessments/:id/)."""
     timeLimitMinutes = serializers.IntegerField(source="time_limit_minutes")
     invitedCount = serializers.IntegerField(source="invited_count", read_only=True)
     submittedCount = serializers.IntegerField(source="submitted_count", read_only=True)
@@ -48,7 +72,6 @@ class AssessmentSerializer(serializers.ModelSerializer):
 
 
 class AssessmentCreateSerializer(serializers.ModelSerializer):
-    """Validates POST /api/assessments/ — title + optional time limit only."""
     timeLimitMinutes = serializers.IntegerField(source="time_limit_minutes", required=False, default=60)
 
     class Meta:
@@ -57,7 +80,6 @@ class AssessmentCreateSerializer(serializers.ModelSerializer):
 
 
 class AssessmentUpdateSerializer(serializers.ModelSerializer):
-    """Validates PATCH /api/assessments/:id/ — all fields optional."""
     timeLimitMinutes = serializers.IntegerField(source="time_limit_minutes", required=False)
 
     class Meta:
