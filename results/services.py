@@ -18,17 +18,13 @@ def calculate_result(attempt):
         .all()
     )
 
-    assessment = attempt.assessment
-
-    questions = assessment.questions.all()
-
     total_points = sum(
         (
-            question.points
-            if question.points is not None
+            answer.question.points
+            if answer.question.points is not None
             else Decimal("0")
         )
-        for question in questions
+        for answer in answers
     )
 
     score = sum(
@@ -67,63 +63,22 @@ def create_result_for_attempt(attempt):
     A result is created only once per attempt.
     """
 
-    result, created = Result.objects.get_or_create(
-        attempt=attempt,
-        defaults={
-            "score": 0,
-            "total_points": 0,
-            "percentage": 0,
-            "status": Result.STATUS_PENDING,
-        },
-    )
-
-    if created:
-        result_data = calculate_result(attempt)
-
-        result.score = result_data["score"]
-        result.total_points = result_data["total_points"]
-        result.percentage = result_data["percentage"]
-
-        result.save(
-            update_fields=[
-                "score",
-                "total_points",
-                "percentage",
-                "updated_at",
-            ]
-        )
-
-    return result
-
-
-def refresh_result(attempt):
-    """
-    Recalculate an existing result after answers have been graded.
-    """
-
-    result = Result.objects.filter(
+    existing_result = Result.objects.filter(
         attempt=attempt
     ).first()
 
-    if not result:
-        return create_result_for_attempt(attempt)
+    if existing_result:
+        return existing_result
 
     result_data = calculate_result(attempt)
 
-    result.score = result_data["score"]
-    result.total_points = result_data["total_points"]
-    result.percentage = result_data["percentage"]
-
-    result.save(
-        update_fields=[
-            "score",
-            "total_points",
-            "percentage",
-            "updated_at",
-        ]
+    return Result.objects.create(
+        attempt=attempt,
+        score=result_data["score"],
+        total_points=result_data["total_points"],
+        percentage=result_data["percentage"],
+        status=Result.STATUS_PENDING,
     )
-
-    return result
 
 
 def get_result_statistics():
@@ -145,15 +100,51 @@ def get_result_statistics():
     return {
         "total_results": statistics["total_results"] or 0,
         "average_percentage": (
-            statistics["average_percentage"]
-            or Decimal("0.00")
+            statistics["average_percentage"] or 0
         ),
         "highest_percentage": (
-            statistics["highest_percentage"]
-            or Decimal("0.00")
+            statistics["highest_percentage"] or 0
         ),
         "lowest_percentage": (
-            statistics["lowest_percentage"]
-            or Decimal("0.00")
+            statistics["lowest_percentage"] or 0
         ),
     }
+
+
+def get_result_rankings():
+    """
+    Return released results ordered from highest
+    percentage to lowest percentage.
+
+    Results with the same percentage receive
+    the same rank.
+    """
+
+    released_results = list(
+        Result.objects
+        .filter(status=Result.STATUS_RELEASED)
+        .select_related("attempt")
+        .order_by("-percentage", "id")
+    )
+
+    rankings = []
+
+    previous_percentage = None
+    current_rank = 0
+
+    for position, result in enumerate(
+        released_results,
+        start=1,
+    ):
+        if result.percentage != previous_percentage:
+            current_rank = position
+            previous_percentage = result.percentage
+
+        rankings.append(
+            {
+                "result": result,
+                "rank": current_rank,
+            }
+        )
+
+    return rankings
