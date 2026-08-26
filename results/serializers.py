@@ -67,25 +67,40 @@ class ResultDetailSerializer(ResultSerializer):
 
 class ResultStatisticsSerializer(serializers.Serializer):
     total_results = serializers.IntegerField()
+
     average_percentage = serializers.DecimalField(
         max_digits=7,
         decimal_places=2,
     )
+
     highest_percentage = serializers.DecimalField(
         max_digits=7,
         decimal_places=2,
     )
+
     lowest_percentage = serializers.DecimalField(
         max_digits=7,
         decimal_places=2,
     )
 
+
 class ResultRankingSerializer(serializers.ModelSerializer):
-    rank = serializers.IntegerField(read_only=True)
+    rank = serializers.IntegerField(
+        read_only=True
+    )
 
     class Meta:
         model = Result
         fields = [
+            "id",
+            "attempt",
+            "score",
+            "total_points",
+            "percentage",
+            "status",
+            "rank",
+        ]
+        read_only_fields = [
             "id",
             "attempt",
             "score",
