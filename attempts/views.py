@@ -22,7 +22,7 @@ class AttemptViewSet(viewsets.ReadOnlyModelViewSet):
         if user.role == UserRole.ADMIN:
             return queryset
         if user.role == UserRole.RECRUITER:
-            return queryset.filter(assessment__created_by=user)
+            return queryset.filter(assessment__recruiter=user)
         return queryset.filter(candidate=user)
 
     def get_serializer_class(self):

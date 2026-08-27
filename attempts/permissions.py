@@ -5,6 +5,8 @@ Custom permissions for attempt views.
 
 from rest_framework import permissions
 
+from accounts.models import User
+
 
 class CanViewAttempt(permissions.BasePermission):
     """
@@ -12,17 +14,16 @@ class CanViewAttempt(permissions.BasePermission):
     """
     
     def has_object_permission(self, request, view, obj):
-        # Admin can view all attempts
-        if request.user.role == 'ADMIN':
+        if request.user.is_superuser:
             return True
         
         # Recruiter can view attempts for their assessments
-        if request.user.role == 'RECRUITER':
-            return obj.assessment.created_by == request.user
+        if request.user.role == User.Role.RECRUITER:
+            return obj.assessment.recruiter_id == request.user.id
         
         # Candidates can view their own attempts
-        if request.user.role == 'CANDIDATE':
-            return obj.candidate == request.user
+        if request.user.role == User.Role.INTERVIEWEE:
+            return obj.candidate_id == request.user.id
         
         return False
 
@@ -37,16 +38,15 @@ class CanManageAttempt(permissions.BasePermission):
         return request.user and request.user.is_authenticated
     
     def has_object_permission(self, request, view, obj):
-        # Admin can manage all attempts
-        if request.user.role == 'ADMIN':
+        if request.user.is_superuser:
             return True
         
         # Recruiters can manage attempts in their assessments
-        if request.user.role == 'RECRUITER':
-            return obj.assessment.created_by == request.user
+        if request.user.role == User.Role.RECRUITER:
+            return obj.assessment.recruiter_id == request.user.id
         
         # Candidates can manage their own attempts
-        if request.user.role == 'CANDIDATE':
-            return obj.candidate == request.user
+        if request.user.role == User.Role.INTERVIEWEE:
+            return obj.candidate_id == request.user.id
         
         return False

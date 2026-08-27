@@ -1,5 +1,7 @@
 from rest_framework.permissions import BasePermission
 
+from accounts.models import User
+
 
 class IsRecruiter(BasePermission):
     """
@@ -14,7 +16,7 @@ class IsRecruiter(BasePermission):
         return (
             user
             and user.is_authenticated
-            and getattr(user, "role", None) == "recruiter"
+            and getattr(user, "role", None) == User.Role.RECRUITER
         )
 
 
@@ -31,5 +33,5 @@ class IsInterviewee(BasePermission):
         return (
             user
             and user.is_authenticated
-            and getattr(user, "role", None) == "interviewee"
+            and getattr(user, "role", None) == User.Role.INTERVIEWEE
         )

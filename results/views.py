@@ -146,7 +146,7 @@ class MyResultsView(APIView):
         results = (
             Result.objects
             .filter(
-                attempt__user=request.user,
+                attempt__candidate=request.user,
                 status=Result.STATUS_RELEASED,
             )
             .prefetch_related("feedback")

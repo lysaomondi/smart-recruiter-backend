@@ -57,8 +57,8 @@ class AssessmentSerializer(serializers.ModelSerializer):
     """Full read serializer — includes nested questions. Also doubles as the
     preview/detail endpoint response (GET /assessments/:id/)."""
     timeLimitMinutes = serializers.IntegerField(source="time_limit_minutes")
-    invitedCount = serializers.IntegerField(source="invited_count", read_only=True)
-    submittedCount = serializers.IntegerField(source="submitted_count", read_only=True)
+    invitedCount = serializers.SerializerMethodField()
+    submittedCount = serializers.SerializerMethodField()
     closesAt = serializers.DateTimeField(source="closes_at", read_only=True, allow_null=True)
     questions = QuestionSerializer(many=True, read_only=True)
 
@@ -69,6 +69,14 @@ class AssessmentSerializer(serializers.ModelSerializer):
             "invitedCount", "submittedCount", "closesAt", "questions",
         ]
         read_only_fields = ["id", "status"]
+
+    def get_invitedCount(self, assessment):
+        return assessment.invitations.count()
+
+    def get_submittedCount(self, assessment):
+        return assessment.attempts.filter(
+            status__in=["submitted", "grading", "graded", "completed"]
+        ).count()
 
 
 class AssessmentCreateSerializer(serializers.ModelSerializer):

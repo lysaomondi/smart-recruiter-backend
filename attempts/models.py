@@ -149,6 +149,8 @@ class Answer(models.Model):
     question = models.ForeignKey('assessments.Question', on_delete=models.CASCADE, related_name='answers')
     selected_choices = models.ManyToManyField('assessments.Choice', blank=True, related_name='answers')
     text_answer = models.TextField(blank=True)
+    bdd_answer = models.TextField(blank=True)
+    pseudocode_answer = models.TextField(blank=True)
     code_answer = models.TextField(blank=True)
     score_earned = models.FloatField(default=0.0)
     feedback = models.TextField(blank=True)
@@ -167,6 +169,8 @@ class Answer(models.Model):
             'question_id': self.question_id,
             'selected_choice_ids': list(self.selected_choices.values_list('id', flat=True)),
             'text_answer': self.text_answer or None,
+            'bdd_answer': self.bdd_answer or None,
+            'pseudocode_answer': self.pseudocode_answer or None,
             'code_answer': self.code_answer or None,
             'score_earned': self.score_earned,
             'feedback': self.feedback or None,

@@ -12,31 +12,11 @@ def calculate_result(attempt):
     and percentage for an assessment attempt.
     """
 
-    answer_records = (
-        attempt.answer_records
-        .select_related("question")
-        .prefetch_related("selected_choices")
-        .all()
-    )
-
-    total_points = sum(
-        (
-            answer.question.points
-            if hasattr(answer.question, "points")
-            and answer.question.points is not None
-            else Decimal("0")
-        )
-        for answer in answer_records
-    )
-
-    score = sum(
-        (
-            Decimal(str(answer.score_earned))
-            if answer.score_earned is not None
-            else Decimal("0")
-        )
-        for answer in answer_records
-    )
+    # AttemptService is the single grading authority. It stores the final
+    # totals on Attempt, avoiding a second calculation against fields that do
+    # not exist on Question.
+    total_points = Decimal(str(attempt.max_score or 0))
+    score = Decimal(str(attempt.total_score or 0))
 
     if total_points > 0:
         percentage = (
