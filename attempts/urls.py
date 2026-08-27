@@ -8,7 +8,8 @@ from rest_framework.routers import DefaultRouter
 from .views import AttemptViewSet
 
 router = DefaultRouter()
-router.register(r'attempts', AttemptViewSet, basename='attempt')
+# config.urls already mounts this app at /api/attempts/.
+router.register(r'', AttemptViewSet, basename='attempt')
 
 urlpatterns = [
     path('', include(router.urls)),

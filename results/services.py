@@ -4,7 +4,7 @@ Business logic for result creation and analytics.
 """
 
 from django.db import transaction
-from django.db.models import Avg, Count, Q, Sum
+from django.db.models import Avg, Count, Max, Min, Q, Sum
 from django.utils import timezone
 from datetime import timedelta
 
@@ -30,17 +30,22 @@ class ResultService:
             passed = attempt.percentage >= passing_score
             
             # Create result
-            result = Result.objects.create(
+            # Re-submission is rejected, but update_or_create also keeps this safe for repairs.
+            result, _ = Result.objects.update_or_create(
                 attempt=attempt,
-                candidate=attempt.candidate,
-                assessment=attempt.assessment,
-                total_score=attempt.total_score,
-                max_score=attempt.max_score,
-                percentage=attempt.percentage,
-                passed=passed
+                defaults={
+                    'candidate': attempt.candidate,
+                    'assessment': attempt.assessment,
+                    'total_score': attempt.total_score,
+                    'max_score': attempt.max_score,
+                    'percentage': attempt.percentage,
+                    'passed': passed,
+                },
             )
             
             # Generate feedback for each question
+            # Replace feedback so a repaired grading run cannot duplicate rows.
+            result.feedback_items.all().delete()
             for answer in attempt.answers:
                 question_id = answer.get('question_id')
                 question = Question.objects.get(id=question_id)

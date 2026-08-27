@@ -5,6 +5,7 @@ Tracks candidate attempts at assessments.
 """
 
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 
@@ -60,8 +61,8 @@ class Attempt(models.Model):
     max_score = models.FloatField(default=0.0)
     percentage = models.FloatField(default=0.0)
     
-    # Answers storage
-    answers = models.JSONField(default=list)  # Store all answers as JSON
+    # Kept as a snapshot for result reporting; Answer is the source of truth while editing.
+    answers = models.JSONField(default=list, blank=True)
     
     # Timestamps
     created_at = models.DateTimeField(auto_now_add=True)
@@ -74,7 +75,14 @@ class Attempt(models.Model):
             models.Index(fields=['status']),
             models.Index(fields=['candidate', 'status']),
         ]
-        unique_together = [['assessment', 'candidate', 'status']]
+        constraints = [
+            # A candidate can resume one active attempt, but may retake after submitting.
+            models.UniqueConstraint(
+                fields=['assessment', 'candidate'],
+                condition=Q(status=AttemptStatus.IN_PROGRESS),
+                name='one_active_attempt_per_assessment',
+            )
+        ]
     
     def __str__(self):
         return f'Attempt {self.id}: {self.candidate.email} - {self.assessment.title}'
@@ -132,3 +140,34 @@ class Attempt(models.Model):
         if self.total_score and self.max_score:
             self.percentage = (self.total_score / self.max_score) * 100
         super().save(*args, **kwargs)
+
+
+class Answer(models.Model):
+    """A candidate's latest saved response to one question in an attempt."""
+
+    attempt = models.ForeignKey(Attempt, on_delete=models.CASCADE, related_name='answer_records')
+    question = models.ForeignKey('assessments.Question', on_delete=models.CASCADE, related_name='answers')
+    selected_choices = models.ManyToManyField('assessments.Choice', blank=True, related_name='answers')
+    text_answer = models.TextField(blank=True)
+    code_answer = models.TextField(blank=True)
+    score_earned = models.FloatField(default=0.0)
+    feedback = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=['attempt', 'question'], name='one_answer_per_question_attempt')]
+
+    def __str__(self):
+        return f'Answer {self.id} for attempt {self.attempt_id}'
+
+    def as_snapshot(self):
+        """Return the JSON shape retained on Attempt after submission."""
+        return {
+            'question_id': self.question_id,
+            'selected_choice_ids': list(self.selected_choices.values_list('id', flat=True)),
+            'text_answer': self.text_answer or None,
+            'code_answer': self.code_answer or None,
+            'score_earned': self.score_earned,
+            'feedback': self.feedback or None,
+        }

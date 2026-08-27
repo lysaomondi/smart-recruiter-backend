@@ -13,7 +13,6 @@ from django.db.models import Q
 from .models import Result
 from .serializers import ResultSerializer, ResultListSerializer
 from .services import ResultService
-from accounts.permissions import IsAdminOrRecruiter
 
 
 class ResultViewSet(viewsets.ModelViewSet):

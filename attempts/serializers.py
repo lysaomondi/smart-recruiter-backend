@@ -1,93 +1,56 @@
-"""
-Attempt Serializers
-Serializers for attempt models.
-"""
+"""Serializers for attempts and candidate answer autosaves."""
 
 from rest_framework import serializers
-from .models import Attempt, AttemptStatus
-from assessments.models import Assessment
+
+from assessments.models import Choice, Question
+from .models import Answer, Attempt
 
 
-class AnswerSerializer(serializers.Serializer):
-    """Serializer for individual answers"""
-    question_id = serializers.IntegerField()
-    selected_choice = serializers.IntegerField(required=False, allow_null=True)
-    text_answer = serializers.CharField(required=False, allow_null=True)
-    code_answer = serializers.CharField(required=False, allow_null=True)
-    score_earned = serializers.FloatField(default=0.0, required=False)
-    feedback = serializers.CharField(required=False, allow_null=True)
+class AnswerSerializer(serializers.ModelSerializer):
+    """Validate an autosaved answer and its one-or-more selected choices."""
+    selected_choice_ids = serializers.PrimaryKeyRelatedField(
+        source='selected_choices', queryset=Choice.objects.all(), many=True, required=False
+    )
+
+    class Meta:
+        model = Answer
+        fields = ['id', 'question', 'selected_choice_ids', 'text_answer', 'code_answer', 'score_earned', 'feedback', 'updated_at']
+        read_only_fields = ['id', 'score_earned', 'feedback', 'updated_at']
+
+    def validate(self, data):
+        attempt = self.context['attempt']
+        question = data.get('question', getattr(self.instance, 'question', None))
+        if question.assessment_id != attempt.assessment_id:
+            raise serializers.ValidationError({'question': 'This question is not part of the attempt assessment.'})
+        choices = data.get('selected_choices', [])
+        if any(choice.question_id != question.id for choice in choices):
+            raise serializers.ValidationError({'selected_choice_ids': 'Every choice must belong to this question.'})
+        return data
 
 
 class AttemptListSerializer(serializers.ModelSerializer):
-    """Serializer for listing attempts"""
-    assessment_title = serializers.SerializerMethodField()
+    assessment_title = serializers.CharField(source='assessment.title', read_only=True)
     candidate_name = serializers.SerializerMethodField()
-    
+
     class Meta:
         model = Attempt
-        fields = [
-            'id', 'assessment', 'assessment_title', 'candidate',
-            'candidate_name', 'status', 'start_time', 'end_time',
-            'submitted_at', 'time_taken', 'total_score', 'max_score',
-            'percentage', 'created_at'
-        ]
-        read_only_fields = ['id', 'created_at']
-    
-    def get_assessment_title(self, obj):
-        return obj.assessment.title
-    
+        fields = ['id', 'assessment', 'assessment_title', 'candidate', 'candidate_name', 'status', 'start_time', 'end_time', 'submitted_at', 'time_taken', 'total_score', 'max_score', 'percentage', 'created_at']
+        read_only_fields = fields
+
     def get_candidate_name(self, obj):
         return obj.candidate.get_full_name() or obj.candidate.username
 
 
 class AttemptDetailSerializer(AttemptListSerializer):
-    """Detailed serializer for attempts"""
-    answers = serializers.JSONField(read_only=True)
-    
+    answer_records = serializers.SerializerMethodField()
+
     class Meta(AttemptListSerializer.Meta):
-        fields = AttemptListSerializer.Meta.fields + ['answers', 'invitation']
+        fields = AttemptListSerializer.Meta.fields + ['invitation', 'answer_records']
 
-
-class AttemptCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating an attempt"""
-    
-    class Meta:
-        model = Attempt
-        fields = ['assessment', 'candidate', 'invitation']
-    
-    def validate(self, data):
-        """Validate attempt creation"""
-        assessment = data.get('assessment')
-        candidate = data.get('candidate')
-        
-        # Check if assessment is published
-        if assessment.status != 'published':
-            raise serializers.ValidationError("Assessment is not available")
-        
-        # Check if candidate already has an in-progress attempt
-        existing_attempt = Attempt.objects.filter(
-            assessment=assessment,
-            candidate=candidate,
-            status=AttemptStatus.IN_PROGRESS
-        ).first()
-        
-        if existing_attempt:
-            raise serializers.ValidationError(
-                "You have an ongoing attempt for this assessment"
-            )
-        
-        return data
+    def get_answer_records(self, attempt):
+        return AnswerSerializer(attempt.answer_records.prefetch_related('selected_choices'), many=True, context={'attempt': attempt}).data
 
 
 class AttemptSubmitSerializer(serializers.Serializer):
-    """Serializer for submitting an attempt"""
-    answers = AnswerSerializer(many=True, required=True)
-
-
-class AttemptUpdateSerializer(serializers.ModelSerializer):
-    """Serializer for updating an attempt"""
-    
-    class Meta:
-        model = Attempt
-        fields = ['status', 'end_time', 'submitted_at', 'time_taken']
-        read_only_fields = ['id', 'created_at', 'updated_at']
+    """Submission does not require a duplicate answer payload; saved answers are used."""
+    pass

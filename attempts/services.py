@@ -3,7 +3,7 @@ Attempt Services
 Business logic for attempt management and grading.
 """
 
-from django.db import transaction
+from django.db import models, transaction
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
@@ -30,7 +30,8 @@ class AttemptService:
         ).first()
         
         if existing:
-            raise ValidationError("You have an ongoing attempt for this assessment")
+            # Starting twice (for example after a browser refresh) resumes the same work.
+            return existing
         
         # Calculate max possible score
         max_score = assessment.questions.aggregate(
@@ -50,12 +51,15 @@ class AttemptService:
         return attempt
     
     @staticmethod
-    def submit_attempt(attempt, answers):
+    def submit_attempt(attempt):
         """
         Submit an attempt for grading.
         """
         with transaction.atomic():
-            # Update attempt
+            # Use the database answer records, so the submit endpoint cannot lose an autosave.
+            answers = [answer.as_snapshot() for answer in attempt.answer_records.prefetch_related('selected_choices', 'question')]
+            if not answers:
+                raise ValidationError("Save at least one answer before submitting.")
             attempt.answers = answers
             attempt.submitted_at = timezone.now()
             attempt.status = AttemptStatus.SUBMITTED
@@ -70,9 +74,16 @@ class AttemptService:
             graded_result = AttemptService.grade_attempt(attempt.id, answers)
             
             attempt.total_score = graded_result['total_score']
+            attempt.max_score = graded_result['max_score']
             attempt.percentage = graded_result['percentage']
             attempt.status = AttemptStatus.GRADED
             attempt.save()
+
+            # Keep individual answer records in sync with the grading snapshot.
+            for graded_answer in graded_result['graded_answers']:
+                attempt.answer_records.filter(question_id=graded_answer['question_id']).update(
+                    score_earned=graded_answer['score_earned'], feedback=graded_answer['feedback'] or ''
+                )
             
             # Create result
             ResultService.create_result(attempt)

@@ -166,12 +166,14 @@ class Question(models.Model):
         Returns: (is_correct, score_earned, feedback)
         """
         if self.question_type == QuestionType.MULTIPLE_CHOICE:
-            selected_choice_id = answer_data.get('choice_id')
-            if not selected_choice_id:
+            # A list supports both single-select and multi-select MCQ questions.
+            selected_choice_ids = answer_data.get('selected_choice_ids') or []
+            if not selected_choice_ids and answer_data.get('selected_choice'):
+                selected_choice_ids = [answer_data['selected_choice']]
+            if not selected_choice_ids:
                 return False, 0, "No choice selected"
-            
-            correct_choices = self.get_correct_answers()
-            is_correct = selected_choice_id in correct_choices
+            correct_choices = set(self.get_correct_answers())
+            is_correct = set(selected_choice_ids) == correct_choices
             return is_correct, self.points if is_correct else 0, None
         
         elif self.question_type == QuestionType.TRUE_FALSE:
