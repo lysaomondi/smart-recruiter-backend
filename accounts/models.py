@@ -76,3 +76,17 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email
+
+class UserRole:
+    """
+    Compatibility shim — Member 3's attempts/invitations code imports
+    UserRole.ADMIN/RECRUITER/CANDIDATE from accounts.models, but the real
+    User model (above) uses User.Role.RECRUITER/INTERVIEWEE instead.
+    This maps their expected names onto the real values so their code
+    works unchanged. ADMIN has no real counterpart yet — it's a distinct
+    value that simply won't match any current user until admin support
+    is actually built.
+    """
+    ADMIN = "ADMIN"
+    RECRUITER = User.Role.RECRUITER
+    CANDIDATE = User.Role.INTERVIEWEE

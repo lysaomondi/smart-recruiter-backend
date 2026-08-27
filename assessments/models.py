@@ -2,15 +2,21 @@ from django.conf import settings
 from django.db import models
 
 
-class Assessment(models.Model):
-    STATUS_CHOICES = [
-        ("draft", "Draft"),
-        ("open", "Open"),
-        ("closed", "Closed"),
-    ]
+class AssessmentStatus(models.TextChoices):
+    """Lifecycle states shared by assessment and invitation workflows."""
 
+    DRAFT = "draft", "Draft"
+    OPEN = "open", "Open"
+    CLOSED = "closed", "Closed"
+
+
+class Assessment(models.Model):
     title = models.CharField(max_length=255)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="draft")
+    status = models.CharField(
+        max_length=20,
+        choices=AssessmentStatus.choices,
+        default=AssessmentStatus.DRAFT,
+    )
     time_limit_minutes = models.PositiveIntegerField(default=60)
 
     recruiter = models.ForeignKey(

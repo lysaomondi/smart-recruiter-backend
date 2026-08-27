@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.generics import get_object_or_404
 
-from .models import Assessment, Question, Choice
+from .models import Assessment, AssessmentStatus, Question, Choice
 from .serializers import (
     AssessmentSerializer,
     AssessmentCreateSerializer,
@@ -30,7 +30,7 @@ class AssessmentListCreateView(generics.ListCreateAPIView):
         return AssessmentCreateSerializer if self.request.method == "POST" else AssessmentSerializer
 
     def perform_create(self, serializer):
-        serializer.save(recruiter=self.request.user, status="draft")
+        serializer.save(recruiter=self.request.user, status=AssessmentStatus.DRAFT)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -69,7 +69,7 @@ class PublishAssessmentView(APIView):
     def post(self, request, assessment_id):
         assessment = get_object_or_404(Assessment, pk=assessment_id, recruiter=request.user)
         self.check_object_permissions(request, assessment)
-        assessment.status = "open"
+        assessment.status = AssessmentStatus.OPEN
         assessment.save()
         return Response(AssessmentSerializer(assessment).data)
 
@@ -81,7 +81,7 @@ class CloseAssessmentView(APIView):
     def post(self, request, assessment_id):
         assessment = get_object_or_404(Assessment, pk=assessment_id, recruiter=request.user)
         self.check_object_permissions(request, assessment)
-        assessment.status = "closed"
+        assessment.status = AssessmentStatus.CLOSED
         assessment.save()
         return Response(AssessmentSerializer(assessment).data)
 

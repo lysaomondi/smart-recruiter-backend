@@ -12,35 +12,35 @@ def calculate_result(attempt):
     and percentage for an assessment attempt.
     """
 
-    answers = (
-        attempt.answers
+    answer_records = (
+        attempt.answer_records
         .select_related("question")
+        .prefetch_related("selected_choices")
         .all()
     )
 
     total_points = sum(
         (
             answer.question.points
-            if answer.question.points is not None
+            if hasattr(answer.question, "points")
+            and answer.question.points is not None
             else Decimal("0")
         )
-        for answer in answers
+        for answer in answer_records
     )
 
     score = sum(
         (
-            answer.points_awarded
-            if answer.points_awarded is not None
+            Decimal(str(answer.score_earned))
+            if answer.score_earned is not None
             else Decimal("0")
         )
-        for answer in answers
+        for answer in answer_records
     )
 
     if total_points > 0:
         percentage = (
-            Decimal(score)
-            / Decimal(total_points)
-            * Decimal("100")
+            score / total_points * Decimal("100")
         ).quantize(
             Decimal("0.01"),
             rounding=ROUND_HALF_UP,
@@ -115,15 +115,16 @@ def get_result_rankings():
     """
     Return released results ordered from highest
     percentage to lowest percentage.
-
-    Results with the same percentage receive
-    the same rank.
     """
 
     released_results = list(
         Result.objects
         .filter(status=Result.STATUS_RELEASED)
-        .select_related("attempt")
+        .select_related(
+            "attempt",
+            "attempt__candidate",
+            "attempt__assessment",
+        )
         .order_by("-percentage", "id")
     )
 

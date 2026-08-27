@@ -13,17 +13,11 @@ class Result(models.Model):
 
     id = models.BigAutoField(primary_key=True)
 
-    # TEMPORARY: commented out by Member 2 during backend-developing-branch
-    # merge — "attempts" app (Member 3) doesn't have AssessmentAttempt yet,
-    # which blocked makemigrations/migrate/test for the whole project.
-    # Member 4: uncomment once attempts.AssessmentAttempt exists, then run
-    # `python manage.py makemigrations results` to generate the real FK
-    # migration (this field is currently NOT in any migration).
-    # attempt = models.OneToOneField(
-    #     "attempts.AssessmentAttempt",
-    #     on_delete=models.CASCADE,
-    #     related_name="result",
-    # )
+    attempt = models.OneToOneField(
+        "attempts.Attempt",
+        on_delete=models.CASCADE,
+        related_name="result",
+    )
 
     score = models.DecimalField(
         max_digits=7,
