@@ -82,7 +82,7 @@ class Assessment(models.Model):
             ]
         return data
 
-    class Question(models.Model):
+class Question(models.Model):
     """
     Question model for storing assessment questions.
     """
