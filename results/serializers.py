@@ -28,11 +28,14 @@ class FeedbackSerializer(serializers.ModelSerializer):
 
 
 class ResultSerializer(serializers.ModelSerializer):
+    candidate_name = serializers.SerializerMethodField()
+
     class Meta:
         model = Result
         fields = [
             "id",
             "attempt",
+            "candidate_name",
             "score",
             "total_points",
             "percentage",
@@ -43,6 +46,8 @@ class ResultSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "attempt",
+            "candidate_name",
             "score",
             "total_points",
             "percentage",
@@ -51,6 +56,10 @@ class ResultSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+    def get_candidate_name(self, obj):
+        candidate = obj.attempt.candidate
+        return candidate.full_name
 
 
 class ResultDetailSerializer(ResultSerializer):

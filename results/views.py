@@ -30,7 +30,7 @@ class ResultListView(APIView):
     def get(self, request):
         results = (
             Result.objects
-            .select_related("attempt")
+            .select_related("attempt", "attempt__candidate")
             .order_by("-created_at")
         )
 
@@ -74,7 +74,7 @@ class ResultDetailView(APIView):
 
     def get(self, request, result_id):
         result = get_object_or_404(
-            Result.objects.prefetch_related("feedback"),
+            Result.objects.select_related("attempt", "attempt__candidate").prefetch_related("feedback"),
             id=result_id,
         )
 
