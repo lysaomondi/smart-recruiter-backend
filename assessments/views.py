@@ -24,7 +24,19 @@ class AssessmentListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Assessment.objects.filter(recruiter=self.request.user)
+        user = self.request.user
+
+        if user.role == "RECRUITER":
+            return Assessment.objects.filter(
+                recruiter=user
+            )
+
+        if user.role == "INTERVIEWEE":
+            return Assessment.objects.filter(
+                status=AssessmentStatus.OPEN
+            )
+
+        return Assessment.objects.none()
 
     def get_serializer_class(self):
         return AssessmentCreateSerializer if self.request.method == "POST" else AssessmentSerializer
@@ -43,18 +55,43 @@ class AssessmentListCreateView(generics.ListCreateAPIView):
 
 class AssessmentDetailView(generics.RetrieveUpdateDestroyAPIView):
     """
-    GET    /api/assessments/:id/  — also serves as the preview/detail endpoint
-    PATCH  /api/assessments/:id/
-    DELETE /api/assessments/:id/
+    GET    /api/assessments/<id>/  — recruiters can view their own
+                                    assessments and interviewees can
+                                    view published/open assessments.
+    PATCH  /api/assessments/<id>/ — recruiter owner only.
+    DELETE /api/assessments/<id>/ — recruiter owner only.
     """
-    permission_classes = [IsAuthenticated, IsAssessmentOwner]
     lookup_url_kwarg = "assessment_id"
 
     def get_queryset(self):
-        return Assessment.objects.filter(recruiter=self.request.user)
+        user = self.request.user
+
+        if user.role == "RECRUITER":
+            return Assessment.objects.filter(
+                recruiter=user
+            )
+
+        if user.role == "INTERVIEWEE":
+            return Assessment.objects.filter(
+                status=AssessmentStatus.OPEN
+            )
+
+        return Assessment.objects.none()
+
+    def get_permissions(self):
+        if self.request.method == "GET":
+            return [IsAuthenticated()]
+
+        return [
+            IsAuthenticated(),
+            IsAssessmentOwner(),
+        ]
 
     def get_serializer_class(self):
-        return AssessmentUpdateSerializer if self.request.method == "PATCH" else AssessmentSerializer
+        if self.request.method in ["PATCH", "PUT"]:
+            return AssessmentUpdateSerializer
+
+        return AssessmentSerializer
 
     def update(self, request, *args, **kwargs):
         super().update(request, *args, **kwargs)

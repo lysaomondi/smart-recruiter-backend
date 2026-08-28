@@ -2,21 +2,47 @@ from rest_framework.permissions import BasePermission
 
 
 class IsAssessmentOwner(BasePermission):
-    """Object is an Assessment — only its recruiter can view/edit/publish/close/delete it."""
+    """
+    Recruiters can access their own assessments.
+    Interviewees can view published/open assessments.
+    """
 
     def has_object_permission(self, request, view, obj):
-        return obj.recruiter_id == request.user.id
+        user = request.user
+
+        # Recruiter owns the assessment
+        if user.role == "RECRUITER":
+            return obj.recruiter_id == user.id
+
+        # Interviewees can view published/open assessments
+        if user.role == "INTERVIEWEE":
+            return (
+                request.method in ["GET", "HEAD", "OPTIONS"]
+                and obj.status == "open"
+            )
+
+        return False
 
 
 class IsQuestionOwner(BasePermission):
-    """Object is a Question — ownership traces through question.assessment.recruiter."""
+    """
+    Only the recruiter who owns the assessment can manage questions.
+    """
 
     def has_object_permission(self, request, view, obj):
-        return obj.assessment.recruiter_id == request.user.id
+        return (
+            request.user.role == "RECRUITER"
+            and obj.assessment.recruiter_id == request.user.id
+        )
 
 
 class IsChoiceOwner(BasePermission):
-    """Object is a Choice — ownership traces through choice.question.assessment.recruiter."""
+    """
+    Only the recruiter who owns the assessment can manage choices.
+    """
 
     def has_object_permission(self, request, view, obj):
-        return obj.question.assessment.recruiter_id == request.user.id
+        return (
+            request.user.role == "RECRUITER"
+            and obj.question.assessment.recruiter_id == request.user.id
+        )
