@@ -1,0 +1,29 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: smart-recruiter-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: smart_recruiter
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: your-real-postgres-password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build: .
+    container_name: smart-recruiter-backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    command: sh -c "gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
+
+volumes:
+  postgres_data:
