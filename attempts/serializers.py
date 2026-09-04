@@ -14,7 +14,7 @@ class AnswerSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Answer
-        fields = ['id', 'question', 'selected_choice_ids', 'text_answer', 'code_answer', 'score_earned', 'feedback', 'updated_at']
+        fields = ['id', 'question', 'selected_choice_ids', 'text_answer', 'bdd_answer', 'pseudocode_answer', 'code_answer', 'score_earned', 'feedback', 'updated_at']
         read_only_fields = ['id', 'score_earned', 'feedback', 'updated_at']
 
     def validate(self, data):
@@ -38,7 +38,7 @@ class AttemptListSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_candidate_name(self, obj):
-        return obj.candidate.get_full_name() or obj.candidate.username
+        return obj.candidate.full_name or obj.candidate.email
 
 
 class AttemptDetailSerializer(AttemptListSerializer):

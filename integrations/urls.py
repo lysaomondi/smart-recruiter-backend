@@ -1,7 +1,26 @@
-"""Integration URL routes.
+from django.urls import path
 
-No integration endpoints are exposed yet, but Django needs this list because the
-app is included by the project URL configuration.
-"""
+from .views import (
+    CodewarsCachedKataListView,
+    CodewarsKataDetailView,
+    CodewarsSearchView,
+)
 
-urlpatterns = []
+
+urlpatterns = [
+    path(
+        "codewars/search/",
+        CodewarsSearchView.as_view(),
+        name="codewars-search",
+    ),
+    path(
+        "codewars/katas/",
+        CodewarsCachedKataListView.as_view(),
+        name="codewars-kata-list",
+    ),
+    path(
+        "codewars/katas/<str:kata_id>/",
+        CodewarsKataDetailView.as_view(),
+        name="codewars-kata-detail",
+    ),
+]

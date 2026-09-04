@@ -3,13 +3,13 @@ Attempt Services
 Business logic for attempt management and grading.
 """
 
-from django.db import models, transaction
+from django.db import transaction
 from django.utils import timezone
 from django.core.exceptions import ValidationError
 
 from .models import Attempt, AttemptStatus
 from assessments.models import Question
-from results.services import ResultService
+from results.services import create_result_for_attempt
 
 
 class AttemptService:
@@ -33,10 +33,8 @@ class AttemptService:
             # Starting twice (for example after a browser refresh) resumes the same work.
             return existing
         
-        # Calculate max possible score
-        max_score = assessment.questions.aggregate(
-            total=models.Sum('points')
-        )['total'] or 0
+        # Only MCQs have an objective correctness signal in the current model.
+        max_score = assessment.questions.filter(type='mcq').count()
         
         # Create attempt
         attempt = Attempt.objects.create(
@@ -86,7 +84,7 @@ class AttemptService:
                 )
             
             # Create result
-            ResultService.create_result(attempt)
+            create_result_for_attempt(attempt)
             
             return {
                 'id': attempt.id,
@@ -102,7 +100,7 @@ class AttemptService:
         Grade an attempt automatically.
         """
         attempt = Attempt.objects.get(id=attempt_id)
-        questions = Question.objects.filter(assessment=attempt.assessment)
+        questions = Question.objects.filter(assessment=attempt.assessment).prefetch_related('choices')
         question_dict = {q.id: q for q in questions}
         
         total_score = 0
@@ -116,17 +114,28 @@ class AttemptService:
             if not question:
                 continue
             
-            max_score += question.points
-            
-            # Grade based on question type
-            is_correct, score, feedback = question.validate_candidate_answer(answer)
+            selected_choice_ids = set(answer.get('selected_choice_ids') or [])
+
+            if question.type == 'mcq':
+                max_score += 1
+                correct_choice_ids = {
+                    choice.id for choice in question.choices.all() if choice.is_correct
+                }
+                is_correct = bool(correct_choice_ids) and selected_choice_ids == correct_choice_ids
+                score = 1 if is_correct else 0
+                feedback = 'Correct.' if is_correct else 'Incorrect.'
+            else:
+                # Text and kata answers are retained for recruiter review. The
+                # merged model defines no objective scoring rule for them.
+                score = 0
+                feedback = 'Requires manual review.'
             
             total_score += score
             
             graded_answers.append({
                 'question_id': question_id,
                 'score_earned': score,
-                'max_score': question.points,
+                'max_score': 1 if question.type == 'mcq' else 0,
                 'feedback': feedback
             })
         

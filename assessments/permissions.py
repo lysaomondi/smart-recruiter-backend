@@ -1,50 +1,48 @@
-"""
-Assessment Permissions
-Custom permissions for assessment and question views.
-"""
-
-from rest_framework import permissions
+from rest_framework.permissions import BasePermission
 
 
-class IsAssessmentCreator(permissions.BasePermission):
+class IsAssessmentOwner(BasePermission):
     """
-    Custom permission to only allow assessment creators to edit.
+    Recruiters can access their own assessments.
+    Interviewees can view published/open assessments.
     """
-    
+
     def has_object_permission(self, request, view, obj):
-        # Read permissions are allowed to any request
-        if request.method in permissions.SAFE_METHODS:
-            return True
-        
-        # Write permissions are only allowed to the creator
-        return obj.created_by == request.user
+        user = request.user
 
+        # Recruiter owns the assessment
+        if user.role == "RECRUITER":
+            return obj.recruiter_id == user.id
 
-class CanManageQuestions(permissions.BasePermission):
-    """
-    Permission to manage questions in an assessment.
-    """
-    
-    def has_permission(self, request, view):
-        # Check if user is authenticated
-        if not request.user or not request.user.is_authenticated:
-            return False
-        
-        # Admin or recruiter can manage questions
-        return request.user.role in ['ADMIN', 'RECRUITER']
-    
-    def has_object_permission(self, request, view, obj):
-        # Admin can manage all questions
-        if request.user.role == 'ADMIN':
-            return True
-        
-        # Recruiter can manage questions in their assessments
-        if request.user.role == 'RECRUITER':
-            # Check if question belongs to an assessment created by this user
-            if hasattr(obj, 'assessment'):
-                return obj.assessment.created_by == request.user
-            # Check if assessment is created by this user
-            if hasattr(obj, 'created_by'):
-                return obj.created_by == request.user
-        
+        # Interviewees can view published/open assessments
+        if user.role == "INTERVIEWEE":
+            return (
+                request.method in ["GET", "HEAD", "OPTIONS"]
+                and obj.status == "open"
+            )
+
         return False
+
+
+class IsQuestionOwner(BasePermission):
+    """
+    Only the recruiter who owns the assessment can manage questions.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        return (
+            request.user.role == "RECRUITER"
+            and obj.assessment.recruiter_id == request.user.id
+        )
+
+
+class IsChoiceOwner(BasePermission):
+    """
+    Only the recruiter who owns the assessment can manage choices.
+    """
+
+    def has_object_permission(self, request, view, obj):
+        return (
+            request.user.role == "RECRUITER"
+            and obj.question.assessment.recruiter_id == request.user.id
+        )

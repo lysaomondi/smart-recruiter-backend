@@ -1,130 +1,96 @@
-"""
-Assessment Serializers
-Serializers for assessment and question models.
-"""
-
 from rest_framework import serializers
-from .models import Assessment, Question, Choice, QuestionType, DifficultyLevel
+from .models import Assessment, Question, Choice
 
 
 class ChoiceSerializer(serializers.ModelSerializer):
-    """Serializer for Choice model"""
-    
+    isCorrect = serializers.BooleanField(source="is_correct", required=False, default=False)
+
     class Meta:
         model = Choice
-        fields = ['id', 'text', 'is_correct', 'order_index']
-        read_only_fields = ['id']
+        fields = ["id", "text", "isCorrect"]
+
+
+class ChoiceUpdateSerializer(serializers.ModelSerializer):
+    """PATCH /assessments/:aid/questions/:qid/choices/:cid/ — all fields optional"""
+    isCorrect = serializers.BooleanField(source="is_correct", required=False)
+
+    class Meta:
+        model = Choice
+        fields = ["text", "isCorrect"]
+        extra_kwargs = {"text": {"required": False}}
 
 
 class QuestionSerializer(serializers.ModelSerializer):
-    """Serializer for Question model"""
     choices = ChoiceSerializer(many=True, required=False)
-    created_by_name = serializers.SerializerMethodField()
-    
+    kataBdd = serializers.CharField(source="kata_bdd", required=False, allow_null=True)
+    kataPseudocode = serializers.CharField(source="kata_pseudocode", required=False, allow_null=True)
+    kataDifficulty = serializers.CharField(source="kata_difficulty", required=False, allow_null=True)
+
     class Meta:
         model = Question
-        fields = [
-            'id', 'assessment', 'question_text', 'question_type',
-            'difficulty', 'points', 'order_index', 'language',
-            'code_template', 'test_cases', 'choices', 'created_by',
-            'created_by_name', 'created_at', 'updated_at'
-        ]
-        read_only_fields = ['id', 'created_at', 'updated_at', 'created_by_name']
-        extra_kwargs = {
-            'assessment': {'write_only': True},
-            'created_by': {'write_only': True}
-        }
-    
-    def get_created_by_name(self, obj):
-        """Get the name of the user who created the question"""
-        if obj.created_by:
-            return obj.created_by.get_full_name() or obj.created_by.username
-        return None
-    
+        fields = ["id", "type", "prompt", "source", "choices", "kataBdd", "kataPseudocode", "kataDifficulty"]
+
     def create(self, validated_data):
-        """Create question with choices"""
-        choices_data = validated_data.pop('choices', [])
-        question = Question.objects.create(**validated_data)
-        
-        for choice_data in choices_data:
-            Choice.objects.create(question=question, **choice_data)
-        
+        choices_data = validated_data.pop("choices", [])
+        assessment = self.context["assessment"]
+        order = assessment.questions.count()
+        question = Question.objects.create(assessment=assessment, order=order, **validated_data)
+        for i, choice_data in enumerate(choices_data):
+            Choice.objects.create(question=question, order=i, **choice_data)
         return question
-    
-    def update(self, instance, validated_data):
-        """Update question with choices"""
-        choices_data = validated_data.pop('choices', None)
-        
-        # Update question fields
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        
-        # Update choices if provided
-        if choices_data is not None:
-            # Delete existing choices
-            instance.choices.all().delete()
-            # Create new choices
-            for choice_data in choices_data:
-                Choice.objects.create(question=instance, **choice_data)
-        
-        return instance
 
 
-class AssessmentListSerializer(serializers.ModelSerializer):
-    """Serializer for listing assessments"""
-    question_count = serializers.SerializerMethodField()
-    created_by_name = serializers.SerializerMethodField()
-    
+class QuestionUpdateSerializer(serializers.ModelSerializer):
+    """PATCH /assessments/:aid/questions/:qid/ — prompt/kata fields only.
+    Choices are managed through their own nested endpoints, not rewritten here."""
+    kataBdd = serializers.CharField(source="kata_bdd", required=False, allow_null=True)
+    kataPseudocode = serializers.CharField(source="kata_pseudocode", required=False, allow_null=True)
+    kataDifficulty = serializers.CharField(source="kata_difficulty", required=False, allow_null=True)
+
+    class Meta:
+        model = Question
+        fields = ["prompt", "kataBdd", "kataPseudocode", "kataDifficulty"]
+        extra_kwargs = {"prompt": {"required": False}}
+
+
+class AssessmentSerializer(serializers.ModelSerializer):
+    """Full read serializer — includes nested questions. Also doubles as the
+    preview/detail endpoint response (GET /assessments/:id/)."""
+    timeLimitMinutes = serializers.IntegerField(source="time_limit_minutes")
+    invitedCount = serializers.SerializerMethodField()
+    submittedCount = serializers.SerializerMethodField()
+    closesAt = serializers.DateTimeField(source="closes_at", read_only=True, allow_null=True)
+    questions = QuestionSerializer(many=True, read_only=True)
+
     class Meta:
         model = Assessment
         fields = [
-            'id', 'title', 'description', 'status', 'duration_minutes',
-            'passing_score', 'created_by', 'created_by_name', 'created_at',
-            'updated_at', 'question_count'
+            "id", "title", "status", "timeLimitMinutes",
+            "invitedCount", "submittedCount", "closesAt", "questions",
         ]
-        read_only_fields = ['id', 'created_at', 'updated_at']
-    
-    def get_question_count(self, obj):
-        return obj.get_question_count()
-    
-    def get_created_by_name(self, obj):
-        if obj.created_by:
-            return obj.created_by.get_full_name() or obj.created_by.username
-        return None
+        read_only_fields = ["id", "status"]
 
+    def get_invitedCount(self, assessment):
+        return assessment.invitations.count()
 
-class AssessmentDetailSerializer(AssessmentListSerializer):
-    """Detailed serializer for assessments with questions"""
-    questions = QuestionSerializer(many=True, read_only=True)
-    
-    class Meta(AssessmentListSerializer.Meta):
-        fields = AssessmentListSerializer.Meta.fields + ['questions']
+    def get_submittedCount(self, assessment):
+        return assessment.attempts.filter(
+            status__in=["submitted", "grading", "graded", "completed"]
+        ).count()
 
 
 class AssessmentCreateSerializer(serializers.ModelSerializer):
-    """Serializer for creating assessments"""
-    
+    timeLimitMinutes = serializers.IntegerField(source="time_limit_minutes", required=False, default=60)
+
     class Meta:
         model = Assessment
-        fields = [
-            'title', 'description', 'duration_minutes', 'passing_score',
-            'status', 'created_by'
-        ]
-        extra_kwargs = {
-            'created_by': {'write_only': True}
-        }
+        fields = ["title", "timeLimitMinutes"]
 
 
-class QuestionBulkCreateSerializer(serializers.Serializer):
-    """Serializer for bulk question creation"""
-    assessment_id = serializers.IntegerField()
-    questions = QuestionSerializer(many=True)
-    
-    def validate_assessment_id(self, value):
-        """Validate that assessment exists"""
-        try:
-            assessment = Assessment.objects.get(id=value)
-        except Assessment.DoesNotExist:
-            raise serializers.ValidationError("Assessment does not exist")
-        return value
+class AssessmentUpdateSerializer(serializers.ModelSerializer):
+    timeLimitMinutes = serializers.IntegerField(source="time_limit_minutes", required=False)
+
+    class Meta:
+        model = Assessment
+        fields = ["title", "timeLimitMinutes"]
+        extra_kwargs = {"title": {"required": False}}

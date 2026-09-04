@@ -1,232 +1,131 @@
-"""
-Result Services
-Business logic for result creation and analytics.
-"""
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.db import transaction
-from django.db.models import Avg, Count, Max, Min, Q, Sum
-from django.utils import timezone
-from datetime import timedelta
+from django.db.models import Avg, Count, Max, Min
 
-from .models import Result, Feedback
-from assessments.models import Question, DifficultyLevel
+from .models import Result
 
 
-class ResultService:
+def calculate_result(attempt):
     """
-    Service class for result operations.
+    Calculate the score, total possible points,
+    and percentage for an assessment attempt.
     """
-    
-    @staticmethod
-    def create_result(attempt):
-        """
-        Create a result from a graded attempt.
-        """
-        with transaction.atomic():
-            # Get the assessment passing score
-            passing_score = attempt.assessment.passing_score
-            
-            # Determine if passed
-            passed = attempt.percentage >= passing_score
-            
-            # Create result
-            # Re-submission is rejected, but update_or_create also keeps this safe for repairs.
-            result, _ = Result.objects.update_or_create(
-                attempt=attempt,
-                defaults={
-                    'candidate': attempt.candidate,
-                    'assessment': attempt.assessment,
-                    'total_score': attempt.total_score,
-                    'max_score': attempt.max_score,
-                    'percentage': attempt.percentage,
-                    'passed': passed,
-                },
-            )
-            
-            # Generate feedback for each question
-            # Replace feedback so a repaired grading run cannot duplicate rows.
-            result.feedback_items.all().delete()
-            for answer in attempt.answers:
-                question_id = answer.get('question_id')
-                question = Question.objects.get(id=question_id)
-                
-                correct_answers = question.get_correct_answers()
-                
-                Feedback.objects.create(
-                    result=result,
-                    question=question,
-                    question_text=question.question_text,
-                    user_answer=answer,
-                    correct_answer=correct_answers,
-                    score_earned=answer.get('score_earned', 0),
-                    max_score=question.points,
-                    feedback_text=answer.get('feedback', '')
-                )
-            
-            # Generate strengths and weaknesses
-            strengths, weaknesses = ResultService._analyze_performance(attempt)
-            result.strengths = strengths
-            result.weaknesses = weaknesses
-            
-            # Generate recommendations
-            result.recommendations = ResultService._generate_recommendations(
-                strengths, weaknesses
-            )
-            
-            result.save()
-            
-            return result
-    
-    @staticmethod
-    def _analyze_performance(attempt):
-        """
-        Analyze candidate performance by question difficulty.
-        """
-        strengths = []
-        weaknesses = []
-        
-        # Get all questions from assessment
-        questions = Question.objects.filter(assessment=attempt.assessment)
-        difficulty_scores = {}
-        
-        for difficulty in DifficultyLevel.values:
-            difficulty_questions = questions.filter(difficulty=difficulty)
-            if not difficulty_questions:
-                continue
-            
-            # Calculate average score for this difficulty level
-            total_score = 0
-            total_possible = 0
-            
-            for question in difficulty_questions:
-                # Find the answer for this question
-                answer = next(
-                    (a for a in attempt.answers if a.get('question_id') == question.id),
-                    None
-                )
-                if answer:
-                    total_score += answer.get('score_earned', 0)
-                    total_possible += question.points
-            
-            if total_possible > 0:
-                percentage = (total_score / total_possible) * 100
-                difficulty_scores[difficulty] = percentage
-        
-        # Identify strengths (score >= 70%)
-        for difficulty, score in difficulty_scores.items():
-            if score >= 70:
-                strengths.append({
-                    'area': difficulty,
-                    'score': round(score, 2),
-                    'level': 'Strong'
-                })
-            elif score < 50:
-                weaknesses.append({
-                    'area': difficulty,
-                    'score': round(score, 2),
-                    'level': 'Needs Improvement'
-                })
-        
-        return strengths, weaknesses
-    
-    @staticmethod
-    def _generate_recommendations(strengths, weaknesses):
-        """
-        Generate recommendations based on performance analysis.
-        """
-        recommendations = []
-        
-        # Recommendations based on weaknesses
-        for weakness in weaknesses:
-            if weakness['area'] == 'beginner':
-                recommendations.append(
-                    "Focus on fundamentals and basic concepts"
-                )
-            elif weakness['area'] == 'intermediate':
-                recommendations.append(
-                    "Practice more intermediate-level problems"
-                )
-            elif weakness['area'] == 'advanced':
-                recommendations.append(
-                    "Work on complex scenarios and edge cases"
-                )
-            elif weakness['area'] == 'expert':
-                recommendations.append(
-                    "Review advanced patterns and optimization techniques"
-                )
-        
-        # General recommendations
-        if not recommendations:
-            recommendations.append(
-                "Continue practicing to maintain your current level"
-            )
-        
-        # Remove duplicates
-        return list(set(recommendations))
-    
-    @staticmethod
-    def get_assessment_statistics(assessment_id):
-        """
-        Get statistics for a specific assessment.
-        """
-        from attempts.models import Attempt
-        
-        attempts = Attempt.objects.filter(
-            assessment_id=assessment_id,
-            status='graded'
+
+    # AttemptService is the single grading authority. It stores the final
+    # totals on Attempt, avoiding a second calculation against fields that do
+    # not exist on Question.
+    total_points = Decimal(str(attempt.max_score or 0))
+    score = Decimal(str(attempt.total_score or 0))
+
+    if total_points > 0:
+        percentage = (
+            score / total_points * Decimal("100")
+        ).quantize(
+            Decimal("0.01"),
+            rounding=ROUND_HALF_UP,
         )
-        
-        if not attempts.exists():
-            return {
-                'assessment_id': assessment_id,
-                'total_attempts': 0,
-                'message': 'No completed attempts found'
+    else:
+        percentage = Decimal("0.00")
+
+    return {
+        "score": score,
+        "total_points": total_points,
+        "percentage": percentage,
+    }
+
+
+@transaction.atomic
+def create_result_for_attempt(attempt):
+    """
+    Create a result for an assessment attempt.
+
+    A result is created only once per attempt.
+    """
+
+    existing_result = Result.objects.filter(
+        attempt=attempt
+    ).first()
+
+    if existing_result:
+        return existing_result
+
+    result_data = calculate_result(attempt)
+
+    return Result.objects.create(
+        attempt=attempt,
+        score=result_data["score"],
+        total_points=result_data["total_points"],
+        percentage=result_data["percentage"],
+        status=Result.STATUS_PENDING,
+    )
+
+
+def get_result_statistics():
+    """
+    Return aggregate statistics for released results.
+    """
+
+    released_results = Result.objects.filter(
+        status=Result.STATUS_RELEASED
+    )
+
+    statistics = released_results.aggregate(
+        total_results=Count("id"),
+        average_percentage=Avg("percentage"),
+        highest_percentage=Max("percentage"),
+        lowest_percentage=Min("percentage"),
+    )
+
+    return {
+        "total_results": statistics["total_results"] or 0,
+        "average_percentage": (
+            statistics["average_percentage"] or 0
+        ),
+        "highest_percentage": (
+            statistics["highest_percentage"] or 0
+        ),
+        "lowest_percentage": (
+            statistics["lowest_percentage"] or 0
+        ),
+    }
+
+
+def get_result_rankings():
+    """
+    Return released results ordered from highest
+    percentage to lowest percentage.
+    """
+
+    released_results = list(
+        Result.objects
+        .filter(status=Result.STATUS_RELEASED)
+        .select_related(
+            "attempt",
+            "attempt__candidate",
+            "attempt__assessment",
+        )
+        .order_by("-percentage", "id")
+    )
+
+    rankings = []
+
+    previous_percentage = None
+    current_rank = 0
+
+    for position, result in enumerate(
+        released_results,
+        start=1,
+    ):
+        if result.percentage != previous_percentage:
+            current_rank = position
+            previous_percentage = result.percentage
+
+        rankings.append(
+            {
+                "result": result,
+                "rank": current_rank,
             }
-        
-        # Calculate statistics
-        stats = attempts.aggregate(
-            avg_score=Avg('percentage'),
-            max_score=Max('percentage'),
-            min_score=Min('percentage'),
-            pass_rate=Avg('percentage__gte=70')
         )
-        
-        return {
-            'assessment_id': assessment_id,
-            'total_attempts': attempts.count(),
-            'average_score': round(stats['avg_score'] or 0, 2),
-            'max_score': round(stats['max_score'] or 0, 2),
-            'min_score': round(stats['min_score'] or 0, 2),
-            'pass_rate': round((stats['pass_rate'] or 0) * 100, 2)
-        }
-    
-    @staticmethod
-    def get_candidate_statistics(candidate_id):
-        """
-        Get statistics for a specific candidate.
-        """
-        results = Result.objects.filter(candidate_id=candidate_id)
-        
-        if not results.exists():
-            return {
-                'candidate_id': candidate_id,
-                'total_assessments': 0,
-                'message': 'No results found'
-            }
-        
-        stats = results.aggregate(
-            avg_score=Avg('percentage'),
-            total_taken=Count('id'),
-            passed_count=Sum('passed')
-        )
-        
-        return {
-            'candidate_id': candidate_id,
-            'total_assessments': stats['total_taken'],
-            'average_score': round(stats['avg_score'] or 0, 2),
-            'passed_count': stats['passed_count'] or 0,
-            'pass_rate': round(
-                (stats['passed_count'] / stats['total_taken'] * 100) 
-                if stats['total_taken'] > 0 else 0, 2
-            )
-        }
+
+    return rankings

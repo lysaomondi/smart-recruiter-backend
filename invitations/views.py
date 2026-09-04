@@ -9,7 +9,11 @@ from rest_framework.response import Response
 from accounts.models import UserRole
 from attempts.services import AttemptService
 from .models import Invitation, InvitationStatus
-from .serializers import InvitationSerializer, InvitationStatusSerializer
+from .serializers import (
+    CandidateAssessmentSerializer,
+    InvitationSerializer,
+    InvitationStatusSerializer,
+)
 
 
 class InvitationViewSet(viewsets.ModelViewSet):
@@ -66,6 +70,17 @@ class InvitationViewSet(viewsets.ModelViewSet):
         invitation.status, invitation.declined_at = InvitationStatus.DECLINED, timezone.now()
         invitation.save(update_fields=["status", "declined_at", "updated_at"])
         return Response(InvitationStatusSerializer(invitation).data)
+
+    @action(detail=True, methods=["get"], url_path="assessment")
+    def assessment(self, request, pk=None):
+        """Return questions only to the candidate with an accepted invitation."""
+        invitation = self.get_object()
+        if invitation.candidate_id != request.user.id:
+            return Response({"detail": "Only the invited candidate can view this assessment."}, status=403)
+        invitation.refresh_status()
+        if invitation.status != InvitationStatus.ACCEPTED:
+            return Response({"detail": "Accept the invitation before viewing the assessment."}, status=400)
+        return Response(CandidateAssessmentSerializer(invitation.assessment).data)
 
     @action(detail=True, methods=["post"], url_path="attempt")
     def start_attempt(self, request, pk=None):

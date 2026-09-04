@@ -1,15 +1,56 @@
-"""
-Result URLs
-URL configuration for result endpoints.
-"""
+from django.urls import path
 
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
-from .views import ResultViewSet
+from .views import (
+    FeedbackDetailView,
+    FeedbackListCreateView,
+    MyResultsView,
+    ReleaseResultView,
+    ResultDetailView,
+    ResultListView,
+    ResultRankingView,
+    ResultStatisticsView,
+)
 
-router = DefaultRouter()
-router.register(r'results', ResultViewSet, basename='result')
 
 urlpatterns = [
-    path('', include(router.urls)),
+    path(
+        "results/",
+        ResultListView.as_view(),
+        name="result-list",
+    ),
+    path(
+        "results/rankings/",
+        ResultRankingView.as_view(),
+        name="result-rankings",
+    ),
+    path(
+        "results/<int:result_id>/",
+        ResultDetailView.as_view(),
+        name="result-detail",
+    ),
+    path(
+        "results/<int:result_id>/release/",
+        ReleaseResultView.as_view(),
+        name="result-release",
+    ),
+    path(
+        "statistics/results/",
+        ResultStatisticsView.as_view(),
+        name="result-statistics",
+    ),
+    path(
+        "results/my/",
+        MyResultsView.as_view(),
+        name="my-results",
+    ),
+    path(
+        "results/<int:result_id>/feedback/",
+        FeedbackListCreateView.as_view(),
+        name="feedback-list-create",
+    ),
+    path(
+        "feedback/<int:feedback_id>/",
+        FeedbackDetailView.as_view(),
+        name="feedback-detail",
+    ),
 ]
